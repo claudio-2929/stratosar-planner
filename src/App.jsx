@@ -342,7 +342,7 @@ const STEPS = [
   { key: "ops", title: "Piattaforma & Ops" },
   { key: "sensor", title: "Sensore & Navigazione" },
   { key: "pricing", title: "Prezzi & Target" },
-  { key: "results", title: "Risultati" },
+  // *** RIMOSSO "Risultati" dallo stepper ***
   { key: "history", title: "Storico & Analisi" },
 ];
 
@@ -562,11 +562,20 @@ export default function App() {
   // Wizard & results highlight
   const [currentStep, setCurrentStep] = useState(0);
   const resultsRef = useRef(null);
+  const historyRef = useRef(null);
   const [flashResults, setFlashResults] = useState(false);
+
+  const goToHistory = () => {
+    setCurrentStep(4);
+    setTimeout(() => {
+      historyRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Enter") {
-        setCurrentStep(4);
         setTimeout(() => {
           resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
           setFlashResults(true);
@@ -578,12 +587,14 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  /* ===== Conferma (popup) ===== */
+  const [showConfirm, setShowConfirm] = useState(false);
+
   /* ===== Storico state ===== */
   const [history, setHistory] = useState(loadHistory());
   useEffect(() => saveHistory(history), [history]);
 
   const saveQuote = () => {
-    // Prezzo che salviamo: annuo (SaaS) o TOTALE scelto (Tasking)
     const priceChosen = p.mode === "saas" ? m.PriceGM : t.Ptot_final;
     const total_cost = p.mode === "saas" ? m.Ann : t.tot;
     const GM_prop = p.mode === "saas" ? m.GM : t.GMm_final;
@@ -604,9 +615,10 @@ export default function App() {
       results: { saas: p.mode==="saas"?m:null, tasking: p.mode==="tasking"?t:null }
     };
     setHistory(prev=>[entry, ...prev].slice(0,500));
-    setCurrentStep(5);
+    goToHistory();
   };
-  const loadQuoteIntoForm = (entry) => { if (entry?.inputs){ setP(entry.inputs); setCurrentStep(4); setTimeout(()=>resultsRef.current?.scrollIntoView({behavior:"smooth"}),50);} };
+
+  const loadQuoteIntoForm = (entry) => { if (entry?.inputs){ setP(entry.inputs); goToHistory(); } };
   const removeQuote = (id) => setHistory(prev=>prev.filter(q=>q.id!==id));
   const clearAllQuotes = () => { if (confirm("Svuotare tutto lo storico preventivi?")) setHistory([]); };
   const stats = useMemo(()=>quickStats(history),[history]);
@@ -638,7 +650,7 @@ export default function App() {
               {STEPS.map((s, i) => (
                 <li key={s.key}>
                   <button
-                    onClick={() => setCurrentStep(i)}
+                    onClick={() => (i === 4 ? goToHistory() : setCurrentStep(i))}
                     className={`px-3 py-1.5 rounded-full text-sm border ${i===currentStep ? "bg-[#5fb1ff]/20 border-[#5fb1ff] text-[#9ed1ff]" : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"}`}
                   >
                     {i + 1}. {s.title}
@@ -649,315 +661,329 @@ export default function App() {
           </nav>
         </header>
 
-        {/* Layout a step */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* COL INPUT */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* STEP 0 — AOI & Servizio */}
-            {currentStep === 0 && (
-              <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
-                <h2 className="text-[#9ed1ff] font-medium mb-1">AOI & Servizio</h2>
+        {/* === Selezione: o il layout standard (step 0-3) oppure lo Storico in alto (step 4) === */}
+        {currentStep !== 4 ? (
+          /* Layout a step (0-3) */
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* COL INPUT */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* STEP 0 — AOI & Servizio */}
+              {currentStep === 0 && (
+                <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
+                  <h2 className="text-[#9ed1ff] font-medium mb-1">AOI & Servizio</h2>
 
-                {/* Cliente & AOI name */}
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-slate-300">Cliente</label>
-                    <input className="w-full border border-white/10 bg-white/5 text-slate-100 rounded-lg px-2 py-2"
-                      value={p.client_name} onChange={(e)=>set("client_name",e.target.value)} placeholder="Nome cliente" />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-300">Nome AOI</label>
-                    <input className="w-full border border-white/10 bg-white/5 text-slate-100 rounded-lg px-2 py-2"
-                      value={p.aoi_name} onChange={(e)=>set("aoi_name",e.target.value)} placeholder="Es. Milano prov." />
-                  </div>
-                </div>
-
-                {/* AOI preset */}
-                <div className="rounded-lg border border-white/10 p-3 bg-white/5">
-                  <div className="text-sm font-medium mb-2 text-slate-200">AOI predefinite</div>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
-                    <select className="md:col-span-6 border border-white/10 rounded px-2 py-2 bg-white/5"
-                            value={selectedPresetId} onChange={(e)=>setSelectedPresetId(e.target.value)}>
-                      <option value="">— seleziona preset —</option>
-                      {presets.map((pr) => (<option key={pr.id} value={pr.id}>{pr.name}</option>))}
-                    </select>
-                    <Button variant="secondary" className="md:col-span-2 py-2 bg-white/10 hover:bg-white/20 whitespace-nowrap" onClick={loadPreset}>Carica</Button>
-                    <input className="md:col-span-3 border border-white/10 rounded px-2 py-2 bg-white/5"
-                           placeholder="Nome nuovo preset" value={presetName} onChange={(e)=>setPresetName(e.target.value)} />
-                    <Button className="md:col-span-2 py-2 whitespace-nowrap" title="Salva l'AOI attuale come preset" onClick={saveCurrentAsPreset}>Salva</Button>
-                  </div>
-                  <div className="mt-2 text-xs flex gap-2 items-center">
-                    <Button variant="outline" className="border-red-400/40 text-red-300 hover:bg-red-500/10" onClick={deleteSelectedPreset}>Elimina selezionato</Button>
-                    <span className="text-slate-400">I preset sono salvati nel tuo browser.</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input type="radio" checked={p.aoiType === "areal"} onChange={() => set("aoiType", "areal")} /> Areale
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" checked={p.aoiType === "corridor"} onChange={() => set("aoiType", "corridor")} /> Corridoio
-                  </label>
-                </div>
-
-                <label className="block text-sm text-slate-300">Area km² <InfoTip id="aoi_km2" /></label>
-                <Num v={p.aoi_km2} on={(v) => set("aoi_km2", v)} />
-                {p.aoiType === "areal" ? (
-                  <>
-                    <label className="block text-sm mt-2 text-slate-300">Larghezza km <span className="opacity-60">(vuoto = √A)</span> <InfoTip id="aoi_width_km" /></label>
-                    <Num v={p.aoi_width_km} on={(v) => set("aoi_width_km", v)} />
-                  </>
-                ) : (
-                  <>
-                    <label className="block text-sm mt-2 text-slate-300">Corridor width km <InfoTip id="corridor_width_km" /></label>
-                    <Num v={p.corridor_width_km} on={(v) => set("corridor_width_km", v)} />
-                  </>
-                )}
-                <label className="block text-sm mt-2 text-slate-300">Revisita min <InfoTip id="revisit_min" /></label>
-                <Num v={p.revisit_min} on={(v) => set("revisit_min", v)} />
-              </section>
-            )}
-
-            {/* STEP 1 — Piattaforma & Ops */}
-            {currentStep === 1 && (
-              <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
-                <h2 className="text-[#9ed1ff] font-medium mb-1">Piattaforma & Ops</h2>
-
-                {/* Preset piattaforma */}
-                <div className="rounded-lg border border-white/10 p-3 bg-white/5">
-                  <div className="text-sm font-medium mb-2 text-slate-200">Preset piattaforma</div>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
-                    <select className="md:col-span-6 border border-white/10 rounded px-2 py-2 bg-white/5"
-                            value={platSel} onChange={(e)=>setPlatSel(e.target.value)}>
-                      <option value="">— seleziona preset —</option>
-                      {platPresets.map(pr => (<option key={pr.id} value={pr.id}>{pr.name}</option>))}
-                    </select>
-                    <Button variant="secondary" className="md:col-span-2 py-2 bg-white/10 hover:bg-white/20" onClick={loadPlatPreset}>Carica</Button>
-                    <input className="md:col-span-3 border border-white/10 rounded px-2 py-2 bg-white/5"
-                           placeholder="Nome preset (es. Stratostats v2)" value={platName} onChange={(e)=>setPlatName(e.target.value)} />
-                    <Button className="md:col-span-2 py-2" onClick={savePlatPreset}>Salva</Button>
-                  </div>
-                  <div className="mt-2 text-xs flex gap-2 items-center">
-                    <Button variant="outline" className="border-red-400/40 text-red-300 hover:bg-red-500/10" onClick={removePlat}>Elimina selezionato</Button>
-                    <span className="text-slate-400">Salvato in locale nel browser.</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3 mb-3 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input type="radio" checked={p.platform === "stats"} onChange={() => set("platform", "stats")} />
-                    Stratostats <InfoTip id="platform" />
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" checked={p.platform === "relay"} onChange={() => set("platform", "relay")} />
-                    Stratorelay <InfoTip id="platform" />
-                  </label>
-                </div>
-
-                {p.platform === "relay" ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="block text-sm text-slate-300">Durata volo (h) <InfoTip id="mission_days" /></label><Num v={p.relay_hours_h} on={(v)=>set("relay_hours_h",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">Turnaround gg <InfoTip id="turnaround_days" /></label>
-                        <input disabled className="w-full border border-white/10 bg-white/5 text-slate-400 rounded-lg px-2 py-2" value="—" />
-                      </div>
+                  {/* Cliente & AOI name */}
+                  <div className="grid md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm text-slate-300">Cliente</label>
+                      <input className="w-full border border-white/10 bg-white/5 text-slate-100 rounded-lg px-2 py-2"
+                        value={p.client_name} onChange={(e)=>set("client_name",e.target.value)} placeholder="Nome cliente" />
                     </div>
-                    <p className="text-xs text-slate-400 mt-2">Stratorelay non può fare revisite con singola piattaforma: revisit più strette ⇒ più <b>lanci</b>.</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div><label className="block text-sm text-slate-300">Durata gg <InfoTip id="mission_days" /></label><Num v={p.mission_days} on={(v)=>set("mission_days",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">Turnaround gg <InfoTip id="turnaround_days" /></label><Num v={p.turnaround_days} on={(v)=>set("turnaround_days",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">MTBF h <InfoTip id="mtbf_h" /></label><Num v={p.mtbf_h} on={(v)=>set("mtbf_h",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">MTTR h <InfoTip id="mttr_h" /></label><Num v={p.mttr_h} on={(v)=>set("mttr_h",v)} /></div>
+                    <div>
+                      <label className="block text-sm text-slate-300">Nome AOI</label>
+                      <input className="w-full border border-white/10 bg-white/5 text-slate-100 rounded-lg px-2 py-2"
+                        value={p.aoi_name} onChange={(e)=>set("aoi_name",e.target.value)} placeholder="Es. Milano prov." />
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mt-2">
-                      <div><label className="block text-sm text-slate-300">Max flight days <InfoTip id="max_flight_days" /></label><Num v={p.max_flight_days} on={(v)=>set("max_flight_days",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">Maint buffer <InfoTip id="maint_buffer" /></label><Num v={p.maint_buffer} on={(v)=>set("maint_buffer",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">Spare buffer <InfoTip id="spare_buffer" /></label><Num v={p.spare_buffer} on={(v)=>set("spare_buffer",v)} /></div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <div><label className="block text-sm text-slate-300">CAPEX plat <InfoTip id="capex_platform_EUR" /></label><Num v={p.capex_platform_EUR} on={(v)=>set("capex_platform_EUR",v)} /></div>
-                      <div><label className="block text-sm text-slate-300">Vita plat (gg) <InfoTip id="life_platform_days" /></label><Num v={p.life_platform_days} on={(v)=>set("life_platform_days",v)} /></div>
-                    </div>
-                  </>
-                )}
-              </section>
-            )}
-
-            {/* STEP 2 — Sensore & Navigazione */}
-            {currentStep === 2 && (
-              <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
-                <h2 className="text-[#9ed1ff] font-medium mb-1">Sensore & Navigazione</h2>
-
-                {/* Preset payload */}
-                <div className="rounded-lg border border-white/10 p-3 bg-white/5">
-                  <div className="text-sm font-medium mb-2 text-slate-200">Preset payload</div>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
-                    <select className="md:col-span-6 border border-white/10 rounded px-2 py-2 bg-white/5"
-                            value={paySel} onChange={(e)=>setPaySel(e.target.value)}>
-                      <option value="">— seleziona preset —</option>
-                      {payPresets.map(pr => (<option key={pr.id} value={pr.id}>{pr.name}</option>))}
-                    </select>
-                    <Button variant="secondary" className="md:col-span-2 py-2 bg-white/10 hover:bg-white/20" onClick={loadPayPreset}>Carica</Button>
-                    <input className="md:col-span-3 border border-white/10 rounded px-2 py-2 bg-white/5"
-                           placeholder="Nome preset (es. SAR v1 ECHOES)" value={payName} onChange={(e)=>setPayName(e.target.value)} />
-                    <Button className="md:col-span-2 py-2" onClick={savePayPreset}>Salva</Button>
-                  </div>
-                  <div className="mt-2 text-xs flex gap-2 items-center">
-                    <Button variant="outline" className="border-red-400/40 text-red-300 hover:bg-red-500/10" onClick={removePay}>Elimina selezionato</Button>
-                    <span className="text-slate-400">Salvato in locale nel browser.</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="block text-sm text-slate-300">Swath km <InfoTip id="swath_km" /></label><Num v={p.swath_km} on={(v)=>set("swath_km",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Vel km/h <InfoTip id="ground_speed_kmh" /></label><Num v={p.ground_speed_kmh} on={(v)=>set("ground_speed_kmh",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Duty <InfoTip id="duty" /></label><Num v={p.duty} on={(v)=>set("duty",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Eff. copertura <InfoTip id="cov_eff" /></label><Num v={p.cov_eff} on={(v)=>set("cov_eff",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Overlap ρ <InfoTip id="overlap" /></label><Num v={p.overlap} on={(v)=>set("overlap",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Raggio virata km <InfoTip id="turn_radius_km" /></label><Num v={p.turn_radius_km} on={(v)=>set("turn_radius_km",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">η nav <InfoTip id="eta_nav" /></label><Num v={p.eta_nav} on={(v)=>set("eta_nav",v)} /></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  <div><label className="block text-sm text-slate-300">CAPEX payload <InfoTip id="capex_payload_EUR" /></label><Num v={p.capex_payload_EUR} on={(v)=>set("capex_payload_EUR",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Vita payload (gg) <InfoTip id="life_payload_days" /></label><Num v={p.life_payload_days} on={(v)=>set("life_payload_days",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Consumabili <InfoTip id="consumables_per_mission" /></label><Num v={p.consumables_per_mission} on={(v)=>set("consumables_per_mission",v)} /></div>
-                </div>
-              </section>
-            )}
-
-            {/* STEP 3 — Prezzi & Target */}
-            {currentStep === 3 && (
-              <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
-                <h2 className="text-[#9ed1ff] font-medium mb-1">Prezzi & Target</h2>
-
-                <div className="text-sm text-slate-300">
-                  {p.mode === "saas" ? (
-                    <div className="grid md:grid-cols-3 gap-3 items-end">
-                      <div className="md:col-span-2">SaaS calcola capacità e costi annuali (senza stagionalità).</div>
-                      <div>
-                        <label className="block text-sm text-slate-300">Prezzo proposto (annuo)</label>
-                        <Num v={p.proposed_annual_price_EUR} on={(v)=>set("proposed_annual_price_EUR",v)} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-3 items-end">
-                      <div className="col-span-1"><label className="block text-sm text-slate-300"># {p.platform==='relay'?'lanci':'missioni'} (manuale)</label><Num v={missionsCount} on={(v)=>set("missions_count",v)} /></div>
-                      <div className="col-span-1"><label className="block text-sm text-slate-300">Profilo missione</label>
-                        <select className="w-full border border-white/10 rounded px-2 py-2 bg-white/5" value={p.mission_profile} onChange={(e)=>set("mission_profile",e.target.value)}>
-                          {Object.entries(PROFILES).map(([k,x])=> <option key={k} value={k}>{x.name}</option>)}
-                        </select>
-                      </div>
-                      <div className="col-span-1"><label className="block text-sm text-slate-300">Prezzo proposto / {p.platform==='relay'?'lancio':'missione'}</label><Num v={p.proposed_price_per_mission_EUR} on={(v)=>set("proposed_price_per_mission_EUR",v)} /></div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-3">
-                  <div><label className="block text-sm text-slate-300">Cf {p.platform==='relay'?'lancio':'missione'} <InfoTip id="Cf_mission" /></label><Num v={p.Cf_mission} on={(v)=>set("Cf_mission",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">€/h (Ch) <InfoTip id="Ch_hour" /></label><Num v={p.Ch_hour} on={(v)=>set("Ch_hour",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">Cloud annuo <InfoTip id="annual_cloud_costs" /></label><Num v={p.annual_cloud_costs} on={(v)=>set("annual_cloud_costs",v)} /></div>
-                  <div><label className="block text-sm text-slate-300">GM target % <InfoTip id="target_gm" /></label><Num v={p.target_gm} on={(v)=>set("target_gm",v)} /></div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <button className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-200" onClick={()=>setCurrentStep((s)=>Math.max(0,s-1))}>← Indietro</button>
-                  <div className="flex gap-2">
-                    <button className="px-4 py-1.5 rounded-lg bg-[#5fb1ff]/20 border border-[#5fb1ff] text-[#9ed1ff]" onClick={()=>setCurrentStep((s)=>Math.min(4,s+1))}>Avanti →</button>
-                    <button className="px-4 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-200" onClick={()=>{setCurrentStep(4); setTimeout(()=>{resultsRef.current?.scrollIntoView({behavior:"smooth",block:"start"});},50);}}>Calcola (Invio)</button>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* step navigation for 0/1/2 */}
-            {currentStep < 3 && (
-              <div className="flex items-center justify-between">
-                <button className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-200 disabled:opacity-40" onClick={()=>setCurrentStep((s)=>Math.max(0,s-1))} disabled={currentStep===0}>← Indietro</button>
-                <div className="flex gap-2">
-                  <button className="px-4 py-1.5 rounded-lg bg-[#5fb1ff]/20 border border-[#5fb1ff] text-[#9ed1ff]" onClick={()=>setCurrentStep((s)=>Math.min(3,s+1))}>Avanti →</button>
-                  <button className="px-4 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-200" onClick={()=>{setCurrentStep(4); setTimeout(()=>{resultsRef.current?.scrollIntoView({behavior:"smooth",block:"start"});},50);}}>Calcola (Invio)</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* COL RISULTATI */}
-          <section ref={resultsRef} className={`bg-white/5 border border-white/10 rounded-2xl shadow-xl p-4 space-y-4 transition ${flashResults ? "ring-4 ring-emerald-400/60" : "ring-0"}`}>
-            <CardHeader className="px-0 pt-0">
-              <CardTitle className={p.mode === "saas" ? "text-[#9ed1ff]" : "text-emerald-300"}>
-                {p.mode === "saas"
-                  ? `Risultati — SaaS (annuale) · ${p.platform === "relay" ? "Stratorelay" : "Stratostats"}`
-                  : `Risultati — Tasking (per ${p.platform === "relay" ? "lancio" : "missione"})`}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-0 pb-0 space-y-2">
-              {p.mode === "saas" ? (
-                <>
-                  <Row l="T_sweep / T_repos / T_cycle" info="aoi_km2">{N(m.Ts,0)} / {N(m.Tr,0)} / <b>{N(m.Tc,0)} min</b></Row>
-                  <Row l="# strisce (n)" info="overlap">{m.n}</Row>
-                  <Row l="Slack (R - T_cycle)"><span className={m.slack>=0?"text-emerald-400":"text-red-400"}>{N(m.slack,0)} min {m.slack>=0?"(OK)":"(KO)"}</span></Row>
-                  <div className="border-t border-white/10"/>
-                  <Row l={p.platform==='relay'?"Lanci/anno (base/tot)":"Voli/anno (base/tot)"}>{m.Fb} / <b>{m.Ft}</b></Row>
-                  <Row l="Revisite/anno" info="revisit_min">{m.revisitsY}</Row>
-                  {p.platform!=='relay' && (<><Row l="Voli/pf/anno">{m.Fpp}</Row><Row l="Piattaforme (finale)">{m.P}</Row></>)}
-                  <div className="border-t border-white/10"/>
-                  <Row l={`Costo ${p.platform==='relay'?'lancio':'missione'} (ops)`}>{EUR(m.Cmis)}</Row>
-                  <Row l="Costo annuo AOI">{EUR(m.Ann)}</Row>
-                  <Row l="€/km² per revisita">{EUR(m.EURkm2rev,2)}</Row>
-                  <Row l="€/km² annuo">{EUR(m.EURkm2y,2)}</Row>
-                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/40 p-3">
-                    <div className="text-xs uppercase tracking-wide text-emerald-300/80">Prezzo (GM target)</div>
-                    <div className="text-2xl font-semibold text-emerald-200">{EUR(m.PriceGM)}</div>
-                  </div>
-                  {m.GM!=null && <Row l="GM su prezzo proposto">{N(m.GM*100,1)}%</Row>}
-                </>
-              ) : (
-                <>
-                  <Row l="Profilo">{PROFILES[p.mission_profile].name}</Row>
-                  <Row l={`Durata ${p.platform==='relay'?'lancio':'missione'} eff.`}>{N(t.D,2)} gg ({N(t.H,0)} h)</Row>
-                  <div className="border-t border-white/10"/>
-                  <Row l={`Costo per ${p.platform==='relay'?'lancio':'missione'}`}>{EUR(t.Cmis)}</Row>
-
-                  {/* Prezzo a GM target */}
-                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/40 p-3">
-                    <div className="text-xs uppercase tracking-wide text-emerald-300/80">Prezzo {p.platform==='relay'?'lancio':'missione'} (GM target)</div>
-                    <div className="text-2xl font-semibold text-emerald-200">{EUR(t.pricePerMissionGM)}</div>
                   </div>
 
-                  {/* Se inserito un prezzo manuale, mostralo e usalo nei totali */}
-                  {t.hasUserPrice && (
+                  {/* AOI preset */}
+                  <div className="rounded-lg border border-white/10 p-3 bg-white/5">
+                    <div className="text-sm font-medium mb-2 text-slate-200">AOI predefinite</div>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                      <select className="md:col-span-6 border border-white/10 rounded px-2 py-2 bg-white/5"
+                              value={selectedPresetId} onChange={(e)=>setSelectedPresetId(e.target.value)}>
+                        <option value="">— seleziona preset —</option>
+                        {presets.map((pr) => (<option key={pr.id} value={pr.id}>{pr.name}</option>))}
+                      </select>
+                      <Button variant="secondary" className="md:col-span-2 py-2 bg-white/10 hover:bg-white/20 whitespace-nowrap" onClick={loadPreset}>Carica</Button>
+                      <input className="md:col-span-3 border border-white/10 rounded px-2 py-2 bg-white/5"
+                             placeholder="Nome nuovo preset" value={presetName} onChange={(e)=>setPresetName(e.target.value)} />
+                      <Button className="md:col-span-2 py-2 whitespace-nowrap" title="Salva l'AOI attuale come preset" onClick={saveCurrentAsPreset}>Salva</Button>
+                    </div>
+                    <div className="mt-2 text-xs flex gap-2 items-center">
+                      <Button variant="outline" className="border-red-400/40 text-red-300 hover:bg-red-500/10" onClick={deleteSelectedPreset}>Elimina selezionato</Button>
+                      <span className="text-slate-400">I preset sono salvati nel tuo browser.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 text-sm">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" checked={p.aoiType === "areal"} onChange={() => set("aoiType", "areal")} /> Areale
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" checked={p.aoiType === "corridor"} onChange={() => set("aoiType", "corridor")} /> Corridoio
+                    </label>
+                  </div>
+
+                  <label className="block text-sm text-slate-300">Area km² <InfoTip id="aoi_km2" /></label>
+                  <Num v={p.aoi_km2} on={(v) => set("aoi_km2", v)} />
+                  {p.aoiType === "areal" ? (
                     <>
-                      <Row l={`Prezzo proposto / ${p.platform==='relay'?'lancio':'missione'}`}>{EUR(t.userPm)}</Row>
-                      <Row l={`GM su prezzo proposto/${p.platform==='relay'?'lancio':'missione'}`}>{N(t.GMm_user*100,1)}%</Row>
+                      <label className="block text-sm mt-2 text-slate-300">Larghezza km <span className="opacity-60">(vuoto = √A)</span> <InfoTip id="aoi_width_km" /></label>
+                      <Num v={p.aoi_width_km} on={(v) => set("aoi_width_km", v)} />
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-sm mt-2 text-slate-300">Corridor width km <InfoTip id="corridor_width_km" /></label>
+                      <Num v={p.corridor_width_km} on={(v) => set("corridor_width_km", v)} />
+                    </>
+                  )}
+                  <label className="block text-sm mt-2 text-slate-300">Revisita min <InfoTip id="revisit_min" /></label>
+                  <Num v={p.revisit_min} on={(v) => set("revisit_min", v)} />
+                </section>
+              )}
+
+              {/* STEP 1 — Piattaforma & Ops */}
+              {currentStep === 1 && (
+                <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
+                  <h2 className="text-[#9ed1ff] font-medium mb-1">Piattaforma & Ops</h2>
+
+                  {/* Preset piattaforma */}
+                  <div className="rounded-lg border border-white/10 p-3 bg-white/5">
+                    <div className="text-sm font-medium mb-2 text-slate-200">Preset piattaforma</div>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                      <select className="md:col-span-6 border border-white/10 rounded px-2 py-2 bg-white/5"
+                              value={platSel} onChange={(e)=>setPlatSel(e.target.value)}>
+                        <option value="">— seleziona preset —</option>
+                        {platPresets.map(pr => (<option key={pr.id} value={pr.id}>{pr.name}</option>))}
+                      </select>
+                      <Button variant="secondary" className="md:col-span-2 py-2 bg-white/10 hover:bg-white/20" onClick={loadPlatPreset}>Carica</Button>
+                      <input className="md:col-span-3 border border-white/10 rounded px-2 py-2 bg-white/5"
+                             placeholder="Nome preset (es. Stratostats v2)" value={platName} onChange={(e)=>setPlatName(e.target.value)} />
+                      <Button className="md:col-span-2 py-2" onClick={savePlatPreset}>Salva</Button>
+                    </div>
+                    <div className="mt-2 text-xs flex gap-2 items-center">
+                      <Button variant="outline" className="border-red-400/40 text-red-300 hover:bg-red-500/10" onClick={removePlat}>Elimina selezionato</Button>
+                      <span className="text-slate-400">Salvato in locale nel browser.</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 mb-3 text-sm">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" checked={p.platform === "stats"} onChange={() => set("platform", "stats")} />
+                      Stratostats <InfoTip id="platform" />
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" checked={p.platform === "relay"} onChange={() => set("platform", "relay")} />
+                      Stratorelay <InfoTip id="platform" />
+                    </label>
+                  </div>
+
+                  {p.platform === "relay" ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className="block text-sm text-slate-300">Durata volo (h) <InfoTip id="mission_days" /></label><Num v={p.relay_hours_h} on={(v)=>set("relay_hours_h",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">Turnaround gg <InfoTip id="turnaround_days" /></label>
+                          <input disabled className="w-full border border-white/10 bg-white/5 text-slate-400 rounded-lg px-2 py-2" value="—" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-2">Stratorelay non può fare revisite con singola piattaforma: revisit più strette ⇒ più <b>lanci</b>.</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className="block text-sm text-slate-300">Durata gg <InfoTip id="mission_days" /></label><Num v={p.mission_days} on={(v)=>set("mission_days",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">Turnaround gg <InfoTip id="turnaround_days" /></label><Num v={p.turnaround_days} on={(v)=>set("turnaround_days",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">MTBF h <InfoTip id="mtbf_h" /></label><Num v={p.mtbf_h} on={(v)=>set("mtbf_h",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">MTTR h <InfoTip id="mttr_h" /></label><Num v={p.mttr_h} on={(v)=>set("mttr_h",v)} /></div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-2">
+                        <div><label className="block text-sm text-slate-300">Max flight days <InfoTip id="max_flight_days" /></label><Num v={p.max_flight_days} on={(v)=>set("max_flight_days",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">Maint buffer <InfoTip id="maint_buffer" /></label><Num v={p.maint_buffer} on={(v)=>set("maint_buffer",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">Spare buffer <InfoTip id="spare_buffer" /></label><Num v={p.spare_buffer} on={(v)=>set("spare_buffer",v)} /></div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div><label className="block text-sm text-slate-300">CAPEX plat <InfoTip id="capex_platform_EUR" /></label><Num v={p.capex_platform_EUR} on={(v)=>set("capex_platform_EUR",v)} /></div>
+                        <div><label className="block text-sm text-slate-300">Vita plat (gg) <InfoTip id="life_platform_days" /></label><Num v={p.life_platform_days} on={(v)=>set("life_platform_days",v)} /></div>
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
+
+              {/* STEP 2 — Sensore & Navigazione */}
+              {currentStep === 2 && (
+                <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
+                  <h2 className="text-[#9ed1ff] font-medium mb-1">Sensore & Navigazione</h2>
+
+                  {/* Preset payload */}
+                  <div className="rounded-lg border border-white/10 p-3 bg-white/5">
+                    <div className="text-sm font-medium mb-2 text-slate-200">Preset payload</div>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                      <select className="md:col-span-6 border border-white/10 rounded px-2 py-2 bg-white/5"
+                              value={paySel} onChange={(e)=>setPaySel(e.target.value)}>
+                        <option value="">— seleziona preset —</option>
+                        {payPresets.map(pr => (<option key={pr.id} value={pr.id}>{pr.name}</option>))}
+                      </select>
+                      <Button variant="secondary" className="md:col-span-2 py-2 bg-white/10 hover:bg-white/20" onClick={loadPayPreset}>Carica</Button>
+                      <input className="md:col-span-3 border border-white/10 rounded px-2 py-2 bg-white/5"
+                             placeholder="Nome preset (es. SAR v1 ECHOES)" value={payName} onChange={(e)=>setPayName(e.target.value)} />
+                      <Button className="md:col-span-2 py-2" onClick={savePayPreset}>Salva</Button>
+                    </div>
+                    <div className="mt-2 text-xs flex gap-2 items-center">
+                      <Button variant="outline" className="border-red-400/40 text-red-300 hover:bg-red-500/10" onClick={removePay}>Elimina selezionato</Button>
+                      <span className="text-slate-400">Salvato in locale nel browser.</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="block text-sm text-slate-300">Swath km <InfoTip id="swath_km" /></label><Num v={p.swath_km} on={(v)=>set("swath_km",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Vel km/h <InfoTip id="ground_speed_kmh" /></label><Num v={p.ground_speed_kmh} on={(v)=>set("ground_speed_kmh",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Duty <InfoTip id="duty" /></label><Num v={p.duty} on={(v)=>set("duty",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Eff. copertura <InfoTip id="cov_eff" /></label><Num v={p.cov_eff} on={(v)=>set("cov_eff",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Overlap ρ <InfoTip id="overlap" /></label><Num v={p.overlap} on={(v)=>set("overlap",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Raggio virata km <InfoTip id="turn_radius_km" /></label><Num v={p.turn_radius_km} on={(v)=>set("turn_radius_km",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">η nav <InfoTip id="eta_nav" /></label><Num v={p.eta_nav} on={(v)=>set("eta_nav",v)} /></div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div><label className="block text-sm text-slate-300">CAPEX payload <InfoTip id="capex_payload_EUR" /></label><Num v={p.capex_payload_EUR} on={(v)=>set("capex_payload_EUR",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Vita payload (gg) <InfoTip id="life_payload_days" /></label><Num v={p.life_payload_days} on={(v)=>set("life_payload_days",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Consumabili <InfoTip id="consumables_per_mission" /></label><Num v={p.consumables_per_mission} on={(v)=>set("consumables_per_mission",v)} /></div>
+                  </div>
+                </section>
+              )}
+
+              {/* STEP 3 — Prezzi & Target */}
+              {currentStep === 3 && (
+                <section className="bg-white/5 border border-white/10 rounded-2xl shadow-lg p-4 space-y-5">
+                  <h2 className="text-[#9ed1ff] font-medium mb-1">Prezzi & Target</h2>
+
+                  <div className="text-sm text-slate-300">
+                    {p.mode === "saas" ? (
+                      <div className="grid md:grid-cols-3 gap-3 items-end">
+                        <div className="md:col-span-2">SaaS calcola capacità e costi annuali (senza stagionalità).</div>
+                        <div>
+                          <label className="block text-sm text-slate-300">Prezzo proposto (annuo)</label>
+                          <Num v={p.proposed_annual_price_EUR} on={(v)=>set("proposed_annual_price_EUR",v)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-3 items-end">
+                        <div className="col-span-1"><label className="block text-sm text-slate-300"># {p.platform==='relay'?'lanci':'missioni'} (manuale)</label><Num v={missionsCount} on={(v)=>set("missions_count",v)} /></div>
+                        <div className="col-span-1"><label className="block text-sm text-slate-300">Profilo missione</label>
+                          <select className="w-full border border-white/10 rounded px-2 py-2 bg-white/5" value={p.mission_profile} onChange={(e)=>set("mission_profile",e.target.value)}>
+                            {Object.entries(PROFILES).map(([k,x])=> <option key={k} value={k}>{x.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="col-span-1"><label className="block text-sm text-slate-300">Prezzo proposto / {p.platform==='relay'?'lancio':'missione'}</label><Num v={p.proposed_price_per_mission_EUR} on={(v)=>set("proposed_price_per_mission_EUR",v)} /></div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-3">
+                    <div><label className="block text-sm text-slate-300">Cf {p.platform==='relay'?'lancio':'missione'} <InfoTip id="Cf_mission" /></label><Num v={p.Cf_mission} on={(v)=>set("Cf_mission",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">€/h (Ch) <InfoTip id="Ch_hour" /></label><Num v={p.Ch_hour} on={(v)=>set("Ch_hour",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">Cloud annuo <InfoTip id="annual_cloud_costs" /></label><Num v={p.annual_cloud_costs} on={(v)=>set("annual_cloud_costs",v)} /></div>
+                    <div><label className="block text-sm text-slate-300">GM target % <InfoTip id="target_gm" /></label><Num v={p.target_gm} on={(v)=>set("target_gm",v)} /></div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-200" onClick={()=>setCurrentStep((s)=>Math.max(0,s-1))}>← Indietro</button>
+                    <div className="flex gap-2">
+                      <button className="px-4 py-1.5 rounded-lg bg-[#5fb1ff]/20 border border-[#5fb1ff] text-[#9ed1ff]" onClick={goToHistory}>Vai a Storico →</button>
+                      <button
+                        className="px-4 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-200"
+                        onClick={()=>{ setTimeout(()=>{resultsRef.current?.scrollIntoView({behavior:"smooth",block:"start"}); setFlashResults(true); setTimeout(()=>setFlashResults(false),1200);},50); }}
+                      >
+                        Calcola (Invio)
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* step navigation for 0/1/2 */}
+              {currentStep < 3 && (
+                <div className="flex items-center justify-between">
+                  <button className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-200 disabled:opacity-40" onClick={()=>setCurrentStep((s)=>Math.max(0,s-1))} disabled={currentStep===0}>← Indietro</button>
+                  <div className="flex gap-2">
+                    <button className="px-4 py-1.5 rounded-lg bg-[#5fb1ff]/20 border border-[#5fb1ff] text-[#9ed1ff]" onClick={()=>setCurrentStep((s)=>Math.min(3,s+1))}>Avanti →</button>
+                    <button
+                      className="px-4 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400 text-emerald-200"
+                      onClick={()=>{ setTimeout(()=>{resultsRef.current?.scrollIntoView({behavior:"smooth",block:"start"}); setFlashResults(true); setTimeout(()=>setFlashResults(false),1200);},50); }}
+                    >
+                      Calcola (Invio)
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* COL RISULTATI (Preview) — nascosto nello Storico */}
+            {currentStep !== 4 && (
+              <section ref={resultsRef} className={`bg-white/5 border border-white/10 rounded-2xl shadow-xl p-4 space-y-4 transition ${flashResults ? "ring-4 ring-emerald-400/60" : "ring-0"}`}>
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle className={p.mode === "saas" ? "text-[#9ed1ff]" : "text-emerald-300"}>
+                    {p.mode === "saas"
+                      ? `Risultati — SaaS (annuale) · ${p.platform === "relay" ? "Stratorelay" : "Stratostats"}`
+                      : `Risultati — Tasking (per ${p.platform === "relay" ? "lancio" : "missione"})`}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-0 pb-0 space-y-2">
+                  {p.mode === "saas" ? (
+                    <>
+                      <Row l="T_sweep / T_repos / T_cycle" info="aoi_km2">{N(m.Ts,0)} / {N(m.Tr,0)} / <b>{N(m.Tc,0)} min</b></Row>
+                      <Row l="# strisce (n)" info="overlap">{m.n}</Row>
+                      <Row l="Slack (R - T_cycle)"><span className={m.slack>=0?"text-emerald-400":"text-red-400"}>{N(m.slack,0)} min {m.slack>=0?"(OK)":"(KO)"}</span></Row>
+                      <div className="border-t border-white/10"/>
+                      <Row l={p.platform==='relay'?"Lanci/anno (base/tot)":"Voli/anno (base/tot)"}>{m.Fb} / <b>{m.Ft}</b></Row>
+                      <Row l="Revisite/anno" info="revisit_min">{m.revisitsY}</Row>
+                      {p.platform!=='relay' && (<><Row l="Voli/pf/anno">{m.Fpp}</Row><Row l="Piattaforme (finale)">{m.P}</Row></>)}
+                      <div className="border-t border-white/10"/>
+                      <Row l={`Costo ${p.platform==='relay'?'lancio':'missione'} (ops)`}>{EUR(m.Cmis)}</Row>
+                      <Row l="Costo annuo AOI">{EUR(m.Ann)}</Row>
+                      <Row l="€/km² per revisita">{EUR(m.EURkm2rev,2)}</Row>
+                      <Row l="€/km² annuo">{EUR(m.EURkm2y,2)}</Row>
+                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/40 p-3">
+                        <div className="text-xs uppercase tracking-wide text-emerald-300/80">Prezzo (GM target)</div>
+                        <div className="text-2xl font-semibold text-emerald-200">{EUR(m.PriceGM)}</div>
+                      </div>
+                      {m.GM!=null && <Row l="GM su prezzo proposto">{N(m.GM*100,1)}%</Row>}
+                    </>
+                  ) : (
+                    <>
+                      <Row l="Profilo">{PROFILES[p.mission_profile].name}</Row>
+                      <Row l={`Durata ${p.platform==='relay'?'lancio':'missione'} eff.`}>{N(t.D,2)} gg ({N(t.H,0)} h)</Row>
+                      <div className="border-t border-white/10"/>
+                      <Row l={`Costo per ${p.platform==='relay'?'lancio':'missione'}`}>{EUR(t.Cmis)}</Row>
+
+                      <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/40 p-3">
+                        <div className="text-xs uppercase tracking-wide text-emerald-300/80">Prezzo {p.platform==='relay'?'lancio':'missione'} (GM target)</div>
+                        <div className="text-2xl font-semibold text-emerald-200">{EUR(t.pricePerMissionGM)}</div>
+                      </div>
+
+                      {t.hasUserPrice && (
+                        <>
+                          <Row l={`Prezzo proposto / ${p.platform==='relay'?'lancio':'missione'}`}>{EUR(t.userPm)}</Row>
+                          <Row l={`GM su prezzo proposto/${p.platform==='relay'?'lancio':'missione'}`}>{N(t.GMm_user*100,1)}%</Row>
+                        </>
+                      )}
+
+                      <div className="border-t border-white/10"/>
+                      <Row l={`# ${p.platform==='relay'?'lanci':'missioni'}`}>{missionsCount}</Row>
+
+                      <Row l="Prezzo totale (scelto)"><b>{EUR(t.Ptot_final)}</b></Row>
+                      <Row l="Costo totale"><b>{EUR(t.tot)}</b></Row>
+                      <Row l="GM su totale scelto">{N(t.GMtot_final*100,1)}%</Row>
                     </>
                   )}
 
-                  <div className="border-t border-white/10"/>
-                  <Row l={`# ${p.platform==='relay'?'lanci':'missioni'}`}>{missionsCount}</Row>
-
-                  {/* Totali: prezzo scelto (manuale se presente, altrimenti GM target) + costo totale */}
-                  <Row l="Prezzo totale (scelto)"><b>{EUR(t.Ptot_final)}</b></Row>
-                  <Row l="Costo totale"><b>{EUR(t.tot)}</b></Row>
-                  <Row l="GM su totale scelto">{N(t.GMtot_final*100,1)}%</Row>
-                </>
-              )}
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button className="bg-emerald-500/20 border border-emerald-400 text-emerald-200" onClick={saveQuote}>Salva preventivo nello storico</Button>
-                <Button className="bg-white/10 border border-white/20 text-slate-200" onClick={()=>setCurrentStep(5)}>Vai a Storico & Analisi</Button>
-              </div>
-            </CardContent>
-          </section>
-        </div>
-
-        {/* STEP 5 — Storico & Analisi */}
-        {currentStep === 5 && (
-          <section className="bg-white/5 border border-white/10 rounded-2xl shadow-xl p-4 space-y-4">
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button className="bg-sky-500/20 border border-sky-400 text-sky-200" onClick={()=>setShowConfirm(true)}>
+                      Conferma & Riepilogo
+                    </Button>
+                    <Button className="bg-white/10 border border-white/20 text-slate-200" onClick={goToHistory}>
+                      Vai a Storico & Analisi
+                    </Button>
+                  </div>
+                </CardContent>
+              </section>
+            )}
+          </div>
+        ) : (
+          /* === STEP 4 — Storico & Analisi (ora in alto e a tutta larghezza) === */
+          <section ref={historyRef} className="bg-white/5 border border-white/10 rounded-2xl shadow-xl p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-[#9ed1ff] font-medium">Storico preventivi & analisi</h2>
               <div className="flex gap-2">
@@ -1030,6 +1056,62 @@ export default function App() {
               ))}
             </div>
           </section>
+        )}
+
+        {/* ======= POPUP RIEPILOGO (senza librerie esterne) ======= */}
+        {showConfirm && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/60" onClick={()=>setShowConfirm(false)} />
+            <div className="absolute inset-0 flex items-center justify-center p-4">
+              <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-slate-100">Riepilogo preventivo</h3>
+                  <button
+                    className="text-slate-300 hover:text-white"
+                    onClick={()=>setShowConfirm(false)}
+                    aria-label="Chiudi"
+                  >✕</button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="text-slate-400">Cliente</div><div className="text-right">{p.client_name || "—"}</div>
+                  <div className="text-slate-400">AOI</div><div className="text-right">{p.aoi_name || "—"}</div>
+                  <div className="text-slate-400">Modalità</div><div className="text-right">{p.mode.toUpperCase()}</div>
+                  <div className="text-slate-400">Piattaforma</div><div className="text-right">{p.platform==='relay'?'Stratorelay':'Stratostats'}</div>
+                  {p.mode==='tasking' && (
+                    <>
+                      <div className="text-slate-400">Profilo missione</div><div className="text-right">{PROFILES[p.mission_profile].name}</div>
+                      <div className="text-slate-400"># {p.platform==='relay'?'lanci':'missioni'}</div><div className="text-right">{missionsCount}</div>
+                      <div className="text-slate-400">Prezzo / {p.platform==='relay'?'lancio':'missione'}</div><div className="text-right">{EUR(t.Pm_final)}</div>
+                      <div className="text-slate-400">Costo / {p.platform==='relay'?'lancio':'missione'}</div><div className="text-right">{EUR(t.Cmis)}</div>
+                      <div className="text-slate-400">Prezzo totale</div><div className="text-right font-semibold">{EUR(t.Ptot_final)}</div>
+                      <div className="text-slate-400">Costo totale</div><div className="text-right font-semibold">{EUR(t.tot)}</div>
+                      <div className="text-slate-400">GM su totale</div><div className="text-right">{N(t.GMtot_final*100,1)}%</div>
+                    </>
+                  )}
+                  {p.mode==='saas' && (
+                    <>
+                      <div className="text-slate-400">Costo annuo AOI</div><div className="text-right">{EUR(m.Ann)}</div>
+                      <div className="text-slate-400">Prezzo target (GM)</div><div className="text-right font-semibold">{EUR(m.PriceGM)}</div>
+                      {m.GM!=null && (<><div className="text-slate-400">GM su prezzo proposto</div><div className="text-right">{N(m.GM*100,1)}%</div></>)}
+                      <div className="text-slate-400">€/km² per revisita</div><div className="text-right">{EUR(m.EURkm2rev,2)}</div>
+                      <div className="text-slate-400">Revisite/anno</div><div className="text-right">{m.revisitsY}</div>
+                    </>
+                  )}
+                </div>
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="secondary" className="bg-white/10 border border-white/20" onClick={()=>setShowConfirm(false)}>Scarta</Button>
+                  <Button
+                    className="bg-emerald-500/20 border border-emerald-400 text-emerald-200"
+                    onClick={()=>{ setShowConfirm(false); saveQuote(); }}
+                  >
+                    Conferma & Salva nello Storico
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
