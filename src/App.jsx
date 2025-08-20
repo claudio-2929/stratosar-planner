@@ -213,15 +213,46 @@ function taskingCalc(p, m, profileKey) {
     pdec(p.consumables_per_mission, DEF.consumables_per_mission) * pr.Cons;
 
   const tot = m * Cmis;
-  const pricePerMissionGM = Cmis / Math.max(1 - pdec(p.target_gm, DEF.target_gm), 0.01);
 
-  let GMm = null, GMtot = null;
-  if (p.proposed_price_per_mission_EUR !== "" && !isNaN(+p.proposed_price_per_mission_EUR)) {
-    const Pm = Math.max(+p.proposed_price_per_mission_EUR, 0.01);
-    GMm = (Pm - Cmis) / Pm;
-    GMtot = (Pm * m - tot) / (Pm * m);
-  }
-  return { isRelay, pr, D, H, Cmis, tot, pricePerMissionGM, GMm, GMtot };
+  // Prezzo calcolato a GM target
+  const gmTarget = pdec(p.target_gm, DEF.target_gm);
+  const pricePerMissionGM = Cmis / Math.max(1 - gmTarget, 0.01);
+  const totalPriceGM = pricePerMissionGM * m;
+
+  // Prezzo proposto manuale (se presente)
+  const userPmValid = p.proposed_price_per_mission_EUR !== "" && isFinite(+p.proposed_price_per_mission_EUR);
+  const userPm = userPmValid ? Math.max(+p.proposed_price_per_mission_EUR, 0.01) : null;
+  const userTotal = userPmValid ? userPm * m : null;
+  const GMm_user = userPmValid ? (userPm - Cmis) / userPm : null;
+  const GMtot_user = userPmValid ? (userTotal - tot) / userTotal : null;
+
+  // Scelta finale: se c'è un prezzo manuale usiamo quello, altrimenti GM target
+  const Pm_final = userPmValid ? userPm : pricePerMissionGM;
+  const Ptot_final = Pm_final * m;
+  const GMm_final = (Pm_final - Cmis) / Pm_final;
+  const GMtot_final = (Ptot_final - tot) / Ptot_final;
+
+  return {
+    isRelay,
+    pr,
+    D,
+    H,
+    Cmis,
+    tot,
+    // info prezzi
+    pricePerMissionGM,
+    totalPriceGM,
+    userPm,
+    userTotal,
+    GMm_user,
+    GMtot_user,
+    // scelti per output principale
+    Pm_final,
+    Ptot_final,
+    GMm_final,
+    GMtot_final,
+    hasUserPrice: userPmValid,
+  };
 }
 
 /* ====================== Tooltip (ⓘ) ====================== */
@@ -552,11 +583,12 @@ export default function App() {
   useEffect(() => saveHistory(history), [history]);
 
   const saveQuote = () => {
-    const id = `q_${Date.now()}`;
-    const price_target = p.mode === "saas" ? m.PriceGM : t.pricePerMissionGM;
+    // Prezzo che salviamo: annuo (SaaS) o TOTALE scelto (Tasking)
+    const priceChosen = p.mode === "saas" ? m.PriceGM : t.Ptot_final;
     const total_cost = p.mode === "saas" ? m.Ann : t.tot;
-    const GM_prop = p.mode === "saas" ? m.GM : t.GMm;
+    const GM_prop = p.mode === "saas" ? m.GM : t.GMm_final;
 
+    const id = `q_${Date.now()}`;
     const entry = {
       id, ts: Date.now(),
       client_name: p.client_name || "Cliente",
@@ -564,7 +596,10 @@ export default function App() {
       mode: p.mode, platform: p.platform, mission_profile: p.mission_profile,
       missions_count: missionsCount,
       aoi_km2: p.aoi_km2, revisit_min: p.revisit_min, Hh: m.Hh, n: m.n,
-      price_target, total_cost, GM_prop, Cmis: p.mode==="saas"?m.Cmis:t.Cmis,
+      price_target: priceChosen,
+      total_cost,
+      GM_prop,
+      Cmis: p.mode==="saas"?m.Cmis:t.Cmis,
       inputs: { ...p },
       results: { saas: p.mode==="saas"?m:null, tasking: p.mode==="tasking"?t:null }
     };
@@ -887,15 +922,28 @@ export default function App() {
                   <Row l={`Durata ${p.platform==='relay'?'lancio':'missione'} eff.`}>{N(t.D,2)} gg ({N(t.H,0)} h)</Row>
                   <div className="border-t border-white/10"/>
                   <Row l={`Costo per ${p.platform==='relay'?'lancio':'missione'}`}>{EUR(t.Cmis)}</Row>
+
+                  {/* Prezzo a GM target */}
                   <div className="rounded-xl bg-emerald-500/10 border border-emerald-400/40 p-3">
                     <div className="text-xs uppercase tracking-wide text-emerald-300/80">Prezzo {p.platform==='relay'?'lancio':'missione'} (GM target)</div>
                     <div className="text-2xl font-semibold text-emerald-200">{EUR(t.pricePerMissionGM)}</div>
                   </div>
-                  {t.GMm!=null && <Row l={`GM su prezzo proposto/${p.platform==='relay'?'lancio':'missione'}`}>{N(t.GMm*100,1)}%</Row>}
+
+                  {/* Se inserito un prezzo manuale, mostralo e usalo nei totali */}
+                  {t.hasUserPrice && (
+                    <>
+                      <Row l={`Prezzo proposto / ${p.platform==='relay'?'lancio':'missione'}`}>{EUR(t.userPm)}</Row>
+                      <Row l={`GM su prezzo proposto/${p.platform==='relay'?'lancio':'missione'}`}>{N(t.GMm_user*100,1)}%</Row>
+                    </>
+                  )}
+
                   <div className="border-t border-white/10"/>
                   <Row l={`# ${p.platform==='relay'?'lanci':'missioni'}`}>{missionsCount}</Row>
+
+                  {/* Totali: prezzo scelto (manuale se presente, altrimenti GM target) + costo totale */}
+                  <Row l="Prezzo totale (scelto)"><b>{EUR(t.Ptot_final)}</b></Row>
                   <Row l="Costo totale"><b>{EUR(t.tot)}</b></Row>
-                  {t.GMtot!=null && <Row l="GM su totale proposto">{N(t.GMtot*100,1)}%</Row>}
+                  <Row l="GM su totale scelto">{N(t.GMtot_final*100,1)}%</Row>
                 </>
               )}
 
