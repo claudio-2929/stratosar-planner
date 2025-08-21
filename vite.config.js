@@ -1,9 +1,12 @@
 // vite.config.js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  base: '/stratosar-planner/', // repo name
-  build: { outDir: 'docs' },   // build diretto in docs/
-})
+  // Use relative paths so GitHub Pages serves assets correctly from /docs
+  base: "./",
+  // Build directly into /docs so Pages (main /docs) picks it up
+  build: { outDir: "docs" },
+});
+
