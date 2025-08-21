@@ -6,17 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:docs": "vite build --outDir docs",
+    "deploy": "rm -rf docs && npm run build:docs && touch docs/.nojekyll && git add docs && git commit -m \"Deploy\" && git push"
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.8.1"
   },
   "devDependencies": {
-    "vite": "^5.4.0",
-    "tailwindcss": "^3.4.9",
+    "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.41",
-    "@vitejs/plugin-react": "^4.3.1"
+    "tailwindcss": "^3.4.9",
+    "vite": "^5.4.0"
   }
 }
