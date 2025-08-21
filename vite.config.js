@@ -4,6 +4,6 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: '/stratosar-planner/',        // necessario per GitHub Pages (repo name)
-  build: { outDir: 'docs' },          // pubblicheremo la cartella docs/
+  base: '/stratosar-planner/', // repo name
+  build: { outDir: 'docs' },   // build diretto in docs/
 })
