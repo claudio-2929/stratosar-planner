@@ -4,10 +4,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  // Use relative paths so GitHub Pages serves assets correctly from /docs
-  base: "./",
-  // Build directly into /docs so Pages (main /docs) picks it up
+  // Base URL per GitHub Pages (repository name)
+  base: "/stratosar-planner/",
+  // Build direttamente dentro /docs per Pages
   build: { outDir: "docs" },
 });
-
-
